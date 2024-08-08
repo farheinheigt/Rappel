@@ -44,95 +44,97 @@ fi
 
 # Fonction pour afficher les rappels et interagir
 function choose_reminder {
-    # Créer un fichier temporaire
-    TEMP_FILE=$(mktemp)
-    # Nettoyer le fichier temporaire en cas d'interruption
-    trap 'rm -f "$TEMP_FILE"' EXIT
+    while true; do
+        # Créer un fichier temporaire
+        TEMP_FILE=$(mktemp)
+        # Nettoyer le fichier temporaire en cas d'interruption
+        trap 'rm -f "$TEMP_FILE"' EXIT
 
-    # Récupérer les rappels de la liste
-    gum spin --spinner dot --title "Récupération des rappels..." --show-output -- osascript -e "tell application \"Reminders\" to get name of reminders of list \"$LIST_NAME\"" > "$TEMP_FILE"
-    REMINDERS=$(<"$TEMP_FILE")
-    rm "$TEMP_FILE"
+        # Récupérer les rappels de la liste
+        gum spin --spinner dot --title "Récupération des rappels..." --show-output -- osascript -e "tell application \"Reminders\" to get name of reminders of list \"$LIST_NAME\"" > "$TEMP_FILE"
+        REMINDERS=$(<"$TEMP_FILE")
+        rm "$TEMP_FILE"
 
-    # Si la liste est vide alors proposer automatiquement d'ajouter un rappel
-    if [ -z "$REMINDERS" ]; then
-        # Offrir la possibilité d'ajouter un rappel si la liste est vide
-        ACTION=$(gum choose --header "Aucun rappel trouvé dans la liste "$LIST_NAME". Veux-tu ajouter ton premier rappel ?" "Yep" "Nop")
-        if [ "$ACTION" = "Nop" ]; then
+        # Si la liste est vide alors proposer automatiquement d'ajouter un rappel
+        if [ -z "$REMINDERS" ]; then
+            # Offrir la possibilité d'ajouter un rappel si la liste est vide
+            ACTION=$(gum choose --header "Aucun rappel trouvé dans la liste \"$LIST_NAME\". Veux-tu ajouter ton premier rappel ?" "Yep" "Nop")
+            if [ "$ACTION" = "Nop" ]; then
+                exit 0
+            elif [ "$ACTION" = "Yep" ]; then
+                NEW_REMINDER=$(gum input --placeholder "Entre ton premier rappel ici !")
+                if [ -n "$NEW_REMINDER" ]; then
+                    add_reminder "$NEW_REMINDER"
+                else
+                    echo "Aucun rappel ajouté."
+                fi
+                continue
+            fi
+        fi
+
+        # Séparer les rappels par des nouvelles lignes en remplaçant ", "
+        REMINDERS=$(echo "$REMINDERS" | sed 's/, /\n/g')
+
+        # Lire les rappels dans un tableau
+        REMINDERS_ARRAY=()
+        while IFS= read -r line; do
+            REMINDERS_ARRAY+=("$line")
+        done <<< "$REMINDERS"
+        REMINDERS_ARRAY+=("Ajouter un rappel")
+        REMINDERS_ARRAY+=("Exit")
+
+        # Construire la chaîne pour gum choose
+        REMINDER_CHOICES=$(printf "%s\n" "${REMINDERS_ARRAY[@]}")
+
+        # Afficher les rappels et permettre à l'utilisateur de choisir
+        CHOSEN_REMINDER=$(echo -e "$REMINDER_CHOICES" | gum choose --header "Voici tes rappels, tu peux les modifier, les supprimer, les marquer comme finis ou en ajouter de nouveaux :")
+        if [ "$CHOSEN_REMINDER" = "Exit" ]; then
             exit 0
-        elif [ "$ACTION" = "Yep" ]; then
-            NEW_REMINDER=$(gum input --placeholder "Entre ton premier rappel ici !")
+        elif [ "$CHOSEN_REMINDER" = "Ajouter un rappel" ]; then
+            # Ajouter un nouveau rappel
+            NEW_REMINDER=$(gum input --placeholder "Entre le nouveau rappel")
             if [ -n "$NEW_REMINDER" ]; then
                 add_reminder "$NEW_REMINDER"
             else
-                echo "Bislama."
+                echo "Aucun rappel ajouté."
             fi
-            exit 0
+            continue
         fi
-    fi
 
-    # Séparer les rappels par des nouvelles lignes en remplaçant ", "
-    REMINDERS=$(echo "$REMINDERS" | sed 's/, /\n/g')
+        # Demander à l'utilisateur s'il veut renommer, supprimer ou marquer comme fini le rappel
+        ACTION=$(printf "Renommer\nSupprimer\nMarquer comme fini\n" | gum choose --header "Choisis une action :")
 
-    # Lire les rappels dans un tableau
-    REMINDERS_ARRAY=()
-    while IFS= read -r line; do
-        REMINDERS_ARRAY+=("$line")
-    done <<< "$REMINDERS"
-    REMINDERS_ARRAY+=("Ajouter un rappel")
-    REMINDERS_ARRAY+=("Exit")
-
-    # Construire la chaîne pour gum choose
-    REMINDER_CHOICES=$(printf "%s\n" "${REMINDERS_ARRAY[@]}")
-
-    # Afficher les rappels et permettre à l'utilisateur de choisir
-    CHOSEN_REMINDER=$(echo -e "$REMINDER_CHOICES" | gum choose --header "Voici tes rappels, tu peux les modifier, les supprimer, les marquer comme finis ou en ajouter de nouveaux :")
-    if [ "$CHOSEN_REMINDER" = "Exit" ]; then
-        exit 0
-    elif [ "$CHOSEN_REMINDER" = "Ajouter un rappel" ]; then
-        # Ajouter un nouveau rappel
-        NEW_REMINDER=$(gum input --placeholder "Entre le nouveau rappel")
-        if [ -n "$NEW_REMINDER" ]; then
-            add_reminder "$NEW_REMINDER"
-        else
-            echo "Aucun rappel ajouté."
-        fi
-        exit 0
-    fi
-
-    # Demander à l'utilisateur s'il veut renommer, supprimer ou marquer comme fini le rappel
-    ACTION=$(printf "Renommer\nSupprimer\nMarquer comme fini\n" | gum choose --header "Choisis une action :")
-
-    if [ "$ACTION" = "Supprimer" ]; then
-        # Supprimer le rappel
-        gum spin --spinner dot --title "Suppression du rappel..." -- osascript -e "tell application \"Reminders\" to delete (first reminder whose name is \"$CHOSEN_REMINDER\") of list \"$LIST_NAME\"" > /dev/null
-        if [ $? -eq 0 ]; then
-            echo "Rappel supprimé: '$CHOSEN_REMINDER'"
-        else
-            echo "Échec de la suppression du rappel: '$CHOSEN_REMINDER'"
-        fi
-    elif [ "$ACTION" = "Renommer" ]; then
-        # Renommer le rappel
-        NEW_NAME=$(gum input --value="$CHOSEN_REMINDER" --placeholder "Entre un nouveau nom !")
-        if [ -n "$NEW_NAME" ]; then
-            gum spin --spinner dot --title "Modification du rappel..." -- osascript -e "tell application \"Reminders\" to set name of (first reminder whose name is \"$CHOSEN_REMINDER\") of list \"$LIST_NAME\" to \"$NEW_NAME\"" > /dev/null
+        if [ "$ACTION" = "Supprimer" ]; then
+            # Supprimer le rappel
+            gum spin --spinner dot --title "Suppression du rappel..." -- osascript -e "tell application \"Reminders\" to delete (first reminder whose name is \"$CHOSEN_REMINDER\") of list \"$LIST_NAME\"" > /dev/null
             if [ $? -eq 0 ]; then
-                echo "Rappel modifié: '$NEW_NAME'"
+                echo "Rappel supprimé: '$CHOSEN_REMINDER'"
             else
-                echo "Échec de la modification du rappel: '$CHOSEN_REMINDER'"
+                echo "Échec de la suppression du rappel: '$CHOSEN_REMINDER'"
             fi
-        else
-            echo "Nom de rappel non modifié."
+        elif [ "$ACTION" = "Renommer" ]; then
+            # Renommer le rappel
+            NEW_NAME=$(gum input --value="$CHOSEN_REMINDER" --placeholder "Entre un nouveau nom !")
+            if [ -n "$NEW_NAME" ]; then
+                gum spin --spinner dot --title "Modification du rappel..." -- osascript -e "tell application \"Reminders\" to set name of (first reminder whose name is \"$CHOSEN_REMINDER\") of list \"$LIST_NAME\" to \"$NEW_NAME\"" > /dev/null
+                if [ $? -eq 0 ]; then
+                    echo "Rappel modifié: '$NEW_NAME'"
+                else
+                    echo "Échec de la modification du rappel: '$CHOSEN_REMINDER'"
+                fi
+            else
+                echo "Nom de rappel non modifié."
+            fi
+        elif [ "$ACTION" = "Marquer comme fini" ]; then
+            # Marquer le rappel comme fini
+            gum spin --spinner dot --title "Marquage du rappel comme fini..." -- osascript -e "tell application \"Reminders\" to set completed of (first reminder whose name is \"$CHOSEN_REMINDER\") of list \"$LIST_NAME\" to true" > /dev/null
+            if [ $? -eq 0 ]; then
+                echo "Rappel marqué comme fini: '$CHOSEN_REMINDER'"
+            else
+                echo "Échec du marquage du rappel comme fini: '$CHOSEN_REMINDER'"
+            fi
         fi
-    elif [ "$ACTION" = "Marquer comme fini" ]; then
-        # Marquer le rappel comme fini
-        gum spin --spinner dot --title "Marquage du rappel comme fini..." -- osascript -e "tell application \"Reminders\" to set completed of (first reminder whose name is \"$CHOSEN_REMINDER\") of list \"$LIST_NAME\" to true" > /dev/null
-        if [ $? -eq 0 ]; then
-            echo "Rappel marqué comme fini: '$CHOSEN_REMINDER'"
-        else
-            echo "Échec du marquage du rappel comme fini: '$CHOSEN_REMINDER'"
-        fi
-    fi
+    done
 }
 
 # Appeler la fonction pour afficher les rappels et permettre l'interaction
