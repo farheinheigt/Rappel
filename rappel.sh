@@ -6,6 +6,12 @@ if ! command -v gum >/dev/null 2>&1; then
     exit 1
 fi
 
+# Vérifier si fzf est installé
+if ! command -v fzf >/dev/null 2>&1; then
+    echo "fzf n'est pas installé. Veuillez l'installer via Homebrew avec 'brew install fzf'."
+    exit 1
+fi
+
 # Nom de la liste
 LIST_NAME="HACKING"
 
@@ -59,9 +65,6 @@ function choose_reminder {
             REMINDERS_ARRAY+=("$line")
         done <<< "$REMINDERS"
 
-        # Ajouter l'option "Retour" à la fin de la liste des rappels
-        REMINDERS_ARRAY+=("< Retour")
-
         # Construire la liste des options principales
         MAIN_CHOICES="Voir les rappels\nAjouter un rappel\nExit"
 
@@ -80,23 +83,18 @@ function choose_reminder {
                 echo "Aucun rappel ajouté."
             fi
         elif [ "$CHOSEN_ACTION" = "Voir les rappels" ]; then
-            if [ ${#REMINDERS_ARRAY[@]} -eq 1 ]; then
-                echo "Il n'y a aucun rappel à afficher."
-                continue
-            fi
-
             while true; do
-                # Afficher les rappels et permettre à l'utilisateur de choisir
-                CHOSEN_REMINDER=$(printf "%s\n" "${REMINDERS_ARRAY[@]}" | gum choose --header "Voici tes rappels, tu peux les modifier, les supprimer, les marquer comme finis :" --height=30)
-                
-                if [ "$CHOSEN_REMINDER" = "< Retour" ]; then
+                # Afficher les rappels avec fzf et permettre à l'utilisateur de choisir
+                CHOSEN_REMINDER=$(printf "%s\n" "${REMINDERS_ARRAY[@]}" | fzf --header="Voici tes rappels, recherche ou sélectionne un rappel :" --height=30% --border --ansi --prompt="Rappel > ")
+
+                if [ -z "$CHOSEN_REMINDER" ]; then
                     break
                 fi
 
                 # Ajouter l'option "Retour" dans le sous-menu d'actions
-                ACTION=$(printf "Modifier le rappel\nSupprimer le rappel\nMarquer comme fini\n< Retour\n" | gum choose --header "Choisis une action :")
+                ACTION=$(printf "Modifier le rappel\nSupprimer le rappel\nMarquer comme fini\n" | gum choose --header "Choisis une action :")
                 
-                if [ "$ACTION" = "< Retour" ]; then
+                if [ -z "$ACTION" ]; then
                     continue
                 elif [ "$ACTION" = "Supprimer le rappel" ]; then
                     # Supprimer le rappel
