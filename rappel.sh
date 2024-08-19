@@ -80,6 +80,11 @@ function choose_reminder {
                 echo "Aucun rappel ajouté."
             fi
         elif [ "$CHOSEN_ACTION" = "Voir les rappels" ]; then
+            if [ ${#REMINDERS_ARRAY[@]} -eq 1 ]; then
+                echo "Il n'y a aucun rappel à afficher."
+                continue
+            fi
+
             while true; do
                 # Afficher les rappels et permettre à l'utilisateur de choisir
                 CHOSEN_REMINDER=$(printf "%s\n" "${REMINDERS_ARRAY[@]}" | gum choose --header "Voici tes rappels, tu peux les modifier, les supprimer, les marquer comme finis :" --height=30)
