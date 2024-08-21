@@ -39,6 +39,8 @@ function add_reminder {
     fi
 }
 
+figlet Rappel Moi
+
 # Vérifier et créer la liste si nécessaire
 create_list_if_not_exists
 
