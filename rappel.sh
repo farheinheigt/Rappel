@@ -39,8 +39,6 @@ function add_reminder {
     fi
 }
 
-figlet Rappel Moi
-
 # Vérifier et créer la liste si nécessaire
 create_list_if_not_exists
 
@@ -49,6 +47,8 @@ if [ $# -gt 0 ]; then
     add_reminder "$*"
     exit 0
 fi
+
+figlet Rappel Moi
 
 # Fonction pour afficher les rappels et interagir
 function choose_reminder {
