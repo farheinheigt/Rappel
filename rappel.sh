@@ -49,6 +49,8 @@ if [ $# -gt 0 ]; then
 fi
 
 figlet Rappel Moi
+echo""
+$HOMEBREW_PREFIX/opt/util-linux/bin/cal -n 3 -m # attention il s'agit du binaire cal install avec les util-linux !!!
 
 # Fonction pour afficher les rappels et interagir
 function choose_reminder {
