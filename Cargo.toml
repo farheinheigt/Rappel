@@ -1,0 +1,8 @@
+[package]
+name = "rappel-rust-helpers"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+spinners = "4.1.1"
+

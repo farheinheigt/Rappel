@@ -1,5 +1,11 @@
 #!/bin/zsh
 
+setopt errexit nounset pipefail
+
+SCRIPT_PATH="${0:A}"
+SCRIPT_DIR="${SCRIPT_PATH:h}"
+SPINNER_HELPER="$SCRIPT_DIR/bin/rappel-spin"
+
 # Vérifier si gum est installé
 if ! command -v gum >/dev/null 2>&1; then
     echo "gum n'est pas installé. Veuillez l'installer via Homebrew avec 'brew install gum'."
@@ -22,7 +28,12 @@ function create_list_if_not_exists {
     list_exist=$(osascript -e "tell application \"Reminders\" to (name of lists) contains \"$LIST_NAME\"")
     if [ "$list_exist" = "false" ]; then
         # Créer la liste si elle n'existe pas
-        gum spin --spinner dot --title "Création de la liste '$LIST_NAME'..." -- osascript -e "tell application \"Reminders\" to make new list with properties {name:\"$LIST_NAME\"}" > /dev/null
+        if [[ -x "$SPINNER_HELPER" && -t 1 ]]; then
+            "$SPINNER_HELPER" --title "Création de la liste '$LIST_NAME'..." -- \
+                osascript -e "tell application \"Reminders\" to make new list with properties {name:\"$LIST_NAME\"}" > /dev/null
+        else
+            osascript -e "tell application \"Reminders\" to make new list with properties {name:\"$LIST_NAME\"}" > /dev/null
+        fi
         echo "Liste '$LIST_NAME' créée avec succès."
     fi
 }
@@ -31,7 +42,12 @@ function create_list_if_not_exists {
 function add_reminder {
     local reminder="$1"
     # Ajouter le rappel à la liste
-    gum spin --spinner dot --title "Ajout du rappel..." -- osascript -e "tell application \"Reminders\" to make new reminder at end of list \"$LIST_NAME\" with properties {name:\"$reminder\"}" > /dev/null
+    if [[ -x "$SPINNER_HELPER" && -t 1 ]]; then
+        "$SPINNER_HELPER" --title "Ajout du rappel..." -- \
+            osascript -e "tell application \"Reminders\" to make new reminder at end of list \"$LIST_NAME\" with properties {name:\"$reminder\"}" > /dev/null
+    else
+        osascript -e "tell application \"Reminders\" to make new reminder at end of list \"$LIST_NAME\" with properties {name:\"$reminder\"}" > /dev/null
+    fi
     if [ $? -eq 0 ]; then
         echo "Rappel ajouté: '$reminder'"
     else
@@ -102,7 +118,12 @@ function choose_reminder {
                     continue
                 elif [ "$ACTION" = "Supprimer le rappel" ]; then
                     # Supprimer le rappel
-                    gum spin --spinner dot --title "Suppression du rappel..." -- osascript -e "tell application \"Reminders\" to delete (first reminder whose name is \"$CHOSEN_REMINDER\") of list \"$LIST_NAME\"" > /dev/null
+                    if [[ -x "$SPINNER_HELPER" && -t 1 ]]; then
+                        "$SPINNER_HELPER" --title "Suppression du rappel..." -- \
+                            osascript -e "tell application \"Reminders\" to delete (first reminder whose name is \"$CHOSEN_REMINDER\") of list \"$LIST_NAME\"" > /dev/null
+                    else
+                        osascript -e "tell application \"Reminders\" to delete (first reminder whose name is \"$CHOSEN_REMINDER\") of list \"$LIST_NAME\"" > /dev/null
+                    fi
                     if [ $? -eq 0 ]; then
                         echo "Rappel supprimé: '$CHOSEN_REMINDER'"
                         load_reminders # Recharge les rappels après suppression
@@ -114,7 +135,12 @@ function choose_reminder {
                     # Modifier le rappel
                     NEW_NAME=$(gum input --value="$CHOSEN_REMINDER" --placeholder "Entre un nouveau nom !" --width=300)
                     if [ -n "$NEW_NAME" ]; then
-                        gum spin --spinner dot --title "Modification du rappel..." -- osascript -e "tell application \"Reminders\" to set name of (first reminder whose name is \"$CHOSEN_REMINDER\") of list \"$LIST_NAME\" to \"$NEW_NAME\"" > /dev/null
+                        if [[ -x "$SPINNER_HELPER" && -t 1 ]]; then
+                            "$SPINNER_HELPER" --title "Modification du rappel..." -- \
+                                osascript -e "tell application \"Reminders\" to set name of (first reminder whose name is \"$CHOSEN_REMINDER\") of list \"$LIST_NAME\" to \"$NEW_NAME\"" > /dev/null
+                        else
+                            osascript -e "tell application \"Reminders\" to set name of (first reminder whose name is \"$CHOSEN_REMINDER\") of list \"$LIST_NAME\" to \"$NEW_NAME\"" > /dev/null
+                        fi
                         if [ $? -eq 0 ]; then
                             echo "Rappel modifié: '$NEW_NAME'"
                             load_reminders # Recharge les rappels après modification
@@ -127,7 +153,12 @@ function choose_reminder {
                     fi
                 elif [ "$ACTION" = "Marquer comme fini" ]; then
                     # Marquer le rappel comme fini
-                    gum spin --spinner dot --title "Marquage du rappel comme fini..." -- osascript -e "tell application \"Reminders\" to set completed of (first reminder whose name is \"$CHOSEN_REMINDER\") of list \"$LIST_NAME\" to true" > /dev/null
+                    if [[ -x "$SPINNER_HELPER" && -t 1 ]]; then
+                        "$SPINNER_HELPER" --title "Marquage du rappel comme fini..." -- \
+                            osascript -e "tell application \"Reminders\" to set completed of (first reminder whose name is \"$CHOSEN_REMINDER\") of list \"$LIST_NAME\" to true" > /dev/null
+                    else
+                        osascript -e "tell application \"Reminders\" to set completed of (first reminder whose name is \"$CHOSEN_REMINDER\") of list \"$LIST_NAME\" to true" > /dev/null
+                    fi
                     if [ $? -eq 0 ]; then
                         echo "Rappel marqué comme fini: '$CHOSEN_REMINDER'"
                         load_reminders # Recharge les rappels après marquage comme fini
@@ -143,7 +174,26 @@ function choose_reminder {
 
 # Fonction pour charger les rappels
 function load_reminders {
-    gum spin --spinner dot --title "Actualisation de la liste de rappels..." --show-output -- osascript -e 'tell application "Reminders" to set reminderNames to (name of reminders of list "'$LIST_NAME'")' -e 'set combinedNames to ""' -e 'repeat with reminderName in reminderNames' -e 'set combinedNames to combinedNames & reminderName & linefeed' -e 'end repeat' -e 'return combinedNames' > "$TEMP_FILE"
+    if [[ -x "$SPINNER_HELPER" && -t 1 ]]; then
+        (
+            osascript -e 'tell application "Reminders" to set reminderNames to (name of reminders of list "'$LIST_NAME'")' \
+                -e 'set combinedNames to ""' \
+                -e 'repeat with reminderName in reminderNames' \
+                -e 'set combinedNames to combinedNames & reminderName & linefeed' \
+                -e 'end repeat' \
+                -e 'return combinedNames' > "$TEMP_FILE"
+        ) &
+        local collect_pid=$!
+        "$SPINNER_HELPER" --title "Actualisation de la liste de rappels..." --pid "$collect_pid" || true
+        wait "$collect_pid"
+    else
+        osascript -e 'tell application "Reminders" to set reminderNames to (name of reminders of list "'$LIST_NAME'")' \
+            -e 'set combinedNames to ""' \
+            -e 'repeat with reminderName in reminderNames' \
+            -e 'set combinedNames to combinedNames & reminderName & linefeed' \
+            -e 'end repeat' \
+            -e 'return combinedNames' > "$TEMP_FILE"
+    fi
 
     if [ ! -s "$TEMP_FILE" ]; then
         echo "Erreur: Impossible de récupérer les rappels."

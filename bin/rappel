@@ -1,0 +1,8 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+THIS_DIR="${0:A:h}"
+PROJECT_DIR="${THIS_DIR:h}"
+
+exec "$PROJECT_DIR/rappel.sh" "$@"
+

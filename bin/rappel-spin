@@ -1,0 +1,19 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+THIS_DIR="${0:A:h}"
+PROJECT_DIR="${THIS_DIR:h}"
+MANIFEST_PATH="$PROJECT_DIR/Cargo.toml"
+TARGET_DIR="$PROJECT_DIR/target"
+BIN_PATH="$PROJECT_DIR/target/release/rappel-spin"
+
+if [[ ! -x "$BIN_PATH" ]]; then
+  env -u CARGO_LOG CARGO_TARGET_DIR="$TARGET_DIR" cargo build --quiet --release --manifest-path "$MANIFEST_PATH" --bin rappel-spin
+elif find "$PROJECT_DIR/src" -type f -newer "$BIN_PATH" -print -quit 2>/dev/null | grep -q .; then
+  env -u CARGO_LOG CARGO_TARGET_DIR="$TARGET_DIR" cargo build --quiet --release --manifest-path "$MANIFEST_PATH" --bin rappel-spin
+elif [[ "$MANIFEST_PATH" -nt "$BIN_PATH" ]]; then
+  env -u CARGO_LOG CARGO_TARGET_DIR="$TARGET_DIR" cargo build --quiet --release --manifest-path "$MANIFEST_PATH" --bin rappel-spin
+fi
+
+exec "$BIN_PATH" "$@"
+
